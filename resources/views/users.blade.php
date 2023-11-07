@@ -19,12 +19,16 @@
                     <td>{{ $user->name }}</td>
                     <td>{{ $user->email }}</td>
                     <td>
-                        <img src="{{ asset('storage/'.$user->photo ) }}" width="150px">
+                        @if(File::exists(public_path('storage/photos/thumbnail/'. $user->photo )) == false)
+                            <p>Not Available</p></td>
+                        @else
+                            <img src="{{ asset('storage/photos/thumbnail/'. $user->photo ) }}" width="150px"></td>
+                        @endif
                     </td>
                     <td>
                         <form action="{{ route('menghapus_data', $user->id) }}" method="POST">
                             @csrf
-                            <button class="btn btn-danger" onClick="return confirm('Yakin mau dihapus?')">Hapus</button>
+                            <button class="btn btn-danger" onClick="return confirm('Apakah Anda yakin ingin dihapus?')">Hapus</button>
                         </form>
                         <form action="{{ route('mengedit_data', $user->id) }}" method="GET">
                             @csrf

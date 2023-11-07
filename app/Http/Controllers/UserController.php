@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\File;
+use Intervention\Image\Facades\Image;
 
 class UserController extends Controller
 {
@@ -67,8 +69,8 @@ class UserController extends Controller
 
         $request->validate([
             'name' => 'required|string|max:250',
-            'email' => 'required|email|max:250|unique:users',
-            'photo' => 'image|nullable|max:5000000'
+            'email' => 'required|email:dns|max:250|unique:users,email,' . $id,
+            'photo' => 'image|nullable|mimes:jpg,png,jpeg|max:5000000'
         ]);
 
         if ($request->hasFile('photo')) {
@@ -76,16 +78,56 @@ class UserController extends Controller
             $filename = pathinfo($filenameWithExt, PATHINFO_FILENAME);
             $extension = $request->file('photo')->getClientOriginalExtension();
             $filenameSimpan = $filename . '_' . time() . '.' . $extension;
-            $path = $request->file('photo')->storeAs('photos', $filenameSimpan);
-            $cariUser->photo = $path;
-        }
+            
+            $photo = $cariUser->photo;
 
-        $cariUser->update([
+            // Hapus gambar asli
+            $originalPath = public_path('storage/photos/original/' . $photo);
+            if (File::exists($originalPath)) {
+                File::delete($originalPath);
+            }
+            //simpan gambar asli
+            $path = $request->file('photo')->storeAs('photos/original', $filenameSimpan);
+
+            // Hapus gambar thumbnail
+            $thumbnailPath = public_path('storage/photos/thumbnail/' . $photo);
+            if (File::exists($thumbnailPath)) {
+                File::delete($thumbnailPath);
+            }
+
+            // Buat thumbnail dengan lebar dan tinggi yang diinginkan
+            $thumbnailPath = public_path('storage/photos/thumbnail/' . $filenameSimpan);
+            Image::make($request->photo)
+                ->fit(150, 150)
+                ->save($thumbnailPath);
+
+            // Hapus gambar square
+            $squarePath = public_path('storage/photos/square/' . $photo);
+            if (File::exists($squarePath)) {
+                File::delete($squarePath);
+            }
+
+            // Buat versi square dengan lebar dan tinggi yang sama
+            $squarePath = public_path('storage/photos/square/' . $filenameSimpan);
+            Image::make($request->photo)
+                ->fit(300, 300)
+                ->save($squarePath);
+
+            $path = $filenameSimpan;
+            User::where('id', $id)->update([
+                'name' => $request->name,
+                'email' => $request->email,
+                'photo' => $path,
+            ]);
+        }
+        else {
+            $cariUser->update([
             'name' => $request->name,
             'email' => $request->email,
-        ]);
+            ]);
+        }
 
-        return redirect('/users');
+        return redirect('/users')->with('success', 'Data berhasil diupdate');
     }
 
     /**
@@ -94,7 +136,33 @@ class UserController extends Controller
     public function destroy($id)
     {
         $cariUser = User::find($id);
+
+        if (!$cariUser) {
+            return redirect()->route('users')->with('error', 'User not found');
+        }
+    
+        $photo = $cariUser->photo;
+    
+        // Hapus gambar asli
+        $originalPath = public_path('storage/photos/original/' . $photo);
+        if (File::exists($originalPath)) {
+            File::delete($originalPath);
+        }
+    
+        // Hapus thumbnail
+        $thumbnailPath = public_path('storage/photos/thumbnail/' . $photo);
+        if (File::exists($thumbnailPath)) {
+            File::delete($thumbnailPath);
+        }
+    
+        // Hapus versi persegi
+        $squarePath = public_path('storage/photos/square/' . $photo);
+        if (File::exists($squarePath)) {
+            File::delete($squarePath);
+        }
+    
+        // Hapus data pengguna
         $cariUser->delete();
-        return redirect('/users');
+        return redirect('/users')->withSuccess('You have successfully deleted data!');
     }
 }
